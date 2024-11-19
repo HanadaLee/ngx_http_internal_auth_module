@@ -259,6 +259,9 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     u_char timestamp_hex[8];
     ngx_hex_dump(timestamp_hex, (u_char *)&timestamp, sizeof(uint32_t));
 
+    v->len = 8;
+    ngx_memcpy(v->data, timestamp_hex, 8);
+/*
     // 拼接 secret + timestamp_hex
     size_t data_len = conf->secret.len + 8;
     u_char *fingerprint_data = ngx_palloc(r->pool, data_len);
@@ -293,6 +296,7 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
 
     // 设置变量
     v->len = fingerprint_len;
+*/
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
