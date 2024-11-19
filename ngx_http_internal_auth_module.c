@@ -179,20 +179,6 @@ ngx_http_internal_auth_compute_md5_hex(ngx_http_request_t *r, const u_char *data
     return md5_hex;
 }
 
-
-/* 复制字符串 */
-static ngx_str_t
-ngx_http_internal_auth_string_n_copy(const u_char *src, size_t n, ngx_pool_t *pool)
-{
-    ngx_str_t s;
-    s.len = n;
-    s.data = ngx_pnalloc(pool, n);
-    if (s.data != NULL) {
-        ngx_memcpy(s.data, src, n);
-    }
-    return s;
-}
-
 /* 查找请求头 */
 static ngx_table_elt_t*
 ngx_http_internal_auth_get_header(ngx_http_request_t *r, ngx_str_t *name)
