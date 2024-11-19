@@ -164,7 +164,7 @@ ngx_http_internal_auth_compute_md5_hex(const u_char *data, size_t len, ngx_pool_
     }
 
     for (i = 0; i < 16; i++) {
-        ngx_snprintf(md5_hex.data + (i * 2), 3, "%02x", digest[i]);
+        ngx_snprintf(md5_hex.data + (i * 2), 3, "%02xD", digest[i]);
     }
     md5_hex.data[md5_hex.len] = '\0';
 
