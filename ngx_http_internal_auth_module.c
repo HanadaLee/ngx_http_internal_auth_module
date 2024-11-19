@@ -10,7 +10,7 @@ typedef struct {
 
 /* 配置结构体 */
 typedef struct {
-    ngx_flag_t   auth_enabled;      /* internal_request_auth on/off */
+    ngx_flag_t   enable;            /* internal_request_auth on/off */
     ngx_str_t    secret;            /* internal_request_auth_secret */
     ngx_flag_t   empty_deny;        /* internal_request_auth_empty_deny on/off */
     ngx_flag_t   failure_deny;      /* internal_request_auth_failure_deny on/off */
@@ -33,7 +33,7 @@ static ngx_command_t ngx_http_internal_auth_commands[] = {
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_internal_auth_conf_t, auth_enabled),
+      offsetof(ngx_http_internal_auth_conf_t, enable),
       NULL },
       
     { ngx_string("internal_request_auth_secret"),
@@ -122,7 +122,7 @@ ngx_http_internal_auth_create_loc_conf(ngx_conf_t *cf)
      *     conf->secret = { 0, NULL };
      */
 
-    conf->auth_enabled = NGX_CONF_UNSET;
+    conf->enable = NGX_CONF_UNSET;
     conf->empty_deny = NGX_CONF_UNSET;
     conf->failure_deny = NGX_CONF_UNSET;
     conf->timeout = NGX_CONF_UNSET_UINT;
@@ -139,7 +139,7 @@ ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_internal_auth_conf_t *prev = parent;
     ngx_http_internal_auth_conf_t *conf = child;
 
-    ngx_conf_merge_off_value(conf->auth_enabled, prev->auth_enabled, 0);
+    ngx_conf_merge_off_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_str_value(conf->secret,
                               prev->secret, "");
     ngx_conf_merge_off_value(conf->empty_deny, prev->empty_deny, 0);
@@ -345,12 +345,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
         ngx_http_set_ctx(r, ctx, ngx_http_internal_auth_module);
     }
 
-    /* 如果 internal_auth_result 已经有结果，则直接返回 */
-    if (ctx->internal_auth_result.len > 0) {
-        return NGX_DECLINED;
-    }
-
-    if (!conf->auth_enabled) {
+    if (!conf->enable) {
         ngx_str_set(&ctx->internal_auth_result, "off"); /* 使用 ngx_str_set 宏 */
         return NGX_DECLINED;
     }
@@ -358,62 +353,90 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     /* 获取请求头 */
     ngx_table_elt_t *h = ngx_http_internal_auth_get_header(r, &conf->header_name);
     if (h == NULL) {
+        ngx_str_set(&ctx->internal_auth_result, "empty");
         if (conf->empty_deny) {
-            ngx_str_set(&ctx->internal_auth_result, "empty");
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "internal auth denied access due to empty fingerprint");
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ngx_str_set(&ctx->internal_auth_result, "success");
             return NGX_DECLINED;
         }
     }
 
     ngx_str_t fingerprint_header = h->value;
 
-    if (fingerprint_header.len < 8) {
+    if (fingerprint_header.len < 40) {
+        ngx_str_set(&ctx->internal_auth_result, "failure");
         if (conf->failure_deny) {
-            ngx_str_set(&ctx->internal_auth_result, "failure");
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "internal auth denied access due to invalid fingerprint format");
+            
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ngx_str_set(&ctx->internal_auth_result, "success");
             return NGX_DECLINED;
         }
     }
 
     /* 提取时间戳和 md5sum */
-    ngx_str_t timestamp_hex = ngx_http_internal_auth_string_n_copy(fingerprint_header.data, 8, r->pool);
-    ngx_str_t md5sum = ngx_http_internal_auth_string_n_copy(fingerprint_header.data + 8, fingerprint_header.len - 8, r->pool);
+    // 分配内存并复制时间戳部分（前 8 字节）
+    ngx_str_t timestamp_hex;
+    timestamp_hex.len = 8;
+    timestamp_hex.data = ngx_palloc(r->pool, timestamp_hex.len);
+    if (timestamp_hex.data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Failed to allocate memory for timestamp_hex");
+        return NGX_ERROR;
+    }
+    ngx_memcpy(timestamp_hex.data, fingerprint_header.data, timestamp_hex.len);
+
+    // 分配内存并复制 MD5 部分（后续 len-8 字节）
+    ngx_str_t md5sum;
+    md5sum.len = fingerprint_header.len - 8;
+    md5sum.data = ngx_palloc(r->pool, md5sum.len);
+    if (md5sum.data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Failed to allocate memory for md5sum");
+        return NGX_ERROR;
+    }
+    ngx_memcpy(md5sum.data, fingerprint_header.data + 8, md5sum.len);
 
     /* 转换时间戳 */
-    unsigned long timestamp = strtoul((char *)timestamp_hex.data, NULL, 16);
-    if (timestamp == 0) {
+    time_t timestamp;
+    // 使用 ngx_hextoi 转换十六进制字符串为十进制时间戳
+    timestamp = (time_t) ngx_hextoi(timestamp_hex.data, timestamp_hex.len);
+    if (timestamp == (time_t) NGX_ERROR) {
+        ngx_str_set(&ctx->internal_auth_result, "failure");
         if (conf->failure_deny) {
-            ngx_str_set(&ctx->internal_auth_result, "failure");
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "internal auth denied access due to invalid fingerprint timestamp");
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ngx_str_set(&ctx->internal_auth_result, "success");
+            return NGX_DECLINED;
+        }
+    }
+
+    // 打印结果到日志
+    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "Converted timestamp: %i", timestamp);
+
+    if (timestamp == 0) {
+        ngx_str_set(&ctx->internal_auth_result, "failure");
+        if (conf->failure_deny) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "internal auth denied access due to invalid fingerprint timestamp");
+            return NGX_HTTP_FORBIDDEN;
+        } else {
             return NGX_DECLINED;
         }
     }
 
     /* 获取当前时间 */
-    ngx_time_t *tp = ngx_timeofday();
-    if (tp == NULL) {
-        if (conf->failure_deny) {
-            ngx_str_set(&ctx->internal_auth_result, "failure");
-            return NGX_HTTP_FORBIDDEN;
-        } else {
-            ngx_str_set(&ctx->internal_auth_result, "success");
-            return NGX_DECLINED;
-        }
-    }
-    unsigned long current_time = tp->sec;
+    time_t current_time = ngx_time();
 
-    if ((current_time - timestamp) > conf->timeout) {
+    if ((current_time - timestamp) > (time_t) conf->timeout) {
+        ngx_str_set(&ctx->internal_auth_result, "failure");
         if (conf->failure_deny) {
-            ngx_str_set(&ctx->internal_auth_result, "failure");
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "internal auth denied access due to fingerprint timeout");
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ngx_str_set(&ctx->internal_auth_result, "success");
             return NGX_DECLINED;
         }
     }
@@ -431,11 +454,12 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
     ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(r, data.data, data.len);
     if (computed_md5.len == 0) {
+        ngx_str_set(&ctx->internal_auth_result, "failure");
         if (conf->failure_deny) {
-            ngx_str_set(&ctx->internal_auth_result, "failure");
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "internal auth denied access due to empty fingerprint hash");
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ngx_str_set(&ctx->internal_auth_result, "success");
             return NGX_DECLINED;
         }
     }
@@ -443,9 +467,10 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     if (computed_md5.len != md5sum.len || ngx_strncmp(computed_md5.data, md5sum.data, md5sum.len) != 0) {
         if (conf->failure_deny) {
             ngx_str_set(&ctx->internal_auth_result, "failure");
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "internal auth denied access due to fingerprint hash mismatch");
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ngx_str_set(&ctx->internal_auth_result, "success");
             return NGX_DECLINED;
         }
     }
