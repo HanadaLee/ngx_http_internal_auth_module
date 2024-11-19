@@ -260,7 +260,7 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     u_char  *p;
 
     timestamp = (uint32_t)ngx_time();
-
+    p = timestamp_hex;
     p += ngx_sprintf(p, "%08xi", timestamp) - p;
 
     v->len = 8;
