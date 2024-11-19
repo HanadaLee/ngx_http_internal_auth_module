@@ -264,7 +264,7 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
 
     /* 转换为8位十六进制 */
     char timestamp_hex[9];
-    ngx_snprintf((u_char *)timestamp_hex, sizeof(timestamp_hex), "%08lx", (unsigned long)current_time);
+    ngx_snprintf((u_char *)timestamp_hex, sizeof(timestamp_hex), "%08lxD", (unsigned long)current_time);
 
     /* 拼接 secret + timestamp_hex */
     size_t data_len = conf->secret.len + 8;
