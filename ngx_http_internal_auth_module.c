@@ -258,9 +258,10 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     uint32_t timestamp;
     u_char   timestamp_hex[9];
     u_char  *p;
-    size_t data_len, fingerprint_len;
+    size_t data_len;
+    //size_t fingerprint_len;
     u_char *fingerprint_data;
-    ngx_str_t computed_md5;
+    //ngx_str_t computed_md5;
 
     timestamp = (uint32_t)ngx_time();
     p = timestamp_hex;
