@@ -302,7 +302,7 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     ngx_memcpy(v->data + 8, computed_md5.data, 32);
 */
     // 设置变量
-    v->len = fingerprint_len;
+    v->len = data_len;
     v->data = fingerprint_data;
     v->valid = 1;
     v->no_cacheable = 0;
