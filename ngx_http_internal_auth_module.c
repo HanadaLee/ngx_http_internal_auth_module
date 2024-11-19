@@ -275,7 +275,7 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     ngx_memcpy(fingerprint_data + conf->secret.len, timestamp_hex, 8);
 
     /* 计算 MD5 */
-    ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(fingerprint_data, data_len, r->pool);
+    ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(r, fingerprint_data, data_len);
     if (computed_md5.len == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
         "failed to compute MD5 for fingerprint");
@@ -418,7 +418,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     ngx_memcpy(data.data, conf->secret.data, conf->secret.len);
     ngx_memcpy(data.data + conf->secret.len, timestamp_hex.data, timestamp_hex.len);
 
-    ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(data.data, data.len, r->pool);
+    ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(r, data.data, data.len);
     if (computed_md5.len == 0) {
         if (conf->failure_deny) {
             ngx_str_set(&ctx->internal_auth_result, "failure");
