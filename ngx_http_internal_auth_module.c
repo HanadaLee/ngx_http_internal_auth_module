@@ -42,42 +42,42 @@ static ngx_int_t ngx_http_internal_auth_init(ngx_conf_t *cf);
 
 
 static ngx_command_t ngx_http_internal_auth_commands[] = {
-    { ngx_string("inernal_auth"),
+    { ngx_string("internal_auth"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, enable),
       NULL },
       
-    { ngx_string("inernal_auth_secret"),
+    { ngx_string("internal_auth_secret"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, secret),
       NULL },
       
-    { ngx_string("inernal_auth_empty_deny"),
+    { ngx_string("internal_auth_empty_deny"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, empty_deny),
       NULL },
       
-    { ngx_string("inernal_auth_failure_deny"),
+    { ngx_string("internal_auth_failure_deny"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, failure_deny),
       NULL },
       
-    { ngx_string("inernal_auth_timeout"),
+    { ngx_string("internal_auth_timeout"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, timeout),
       NULL },
       
-    { ngx_string("inernal_auth_header"),
+    { ngx_string("internal_auth_header"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
