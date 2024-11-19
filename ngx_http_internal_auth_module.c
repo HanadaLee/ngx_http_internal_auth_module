@@ -247,7 +247,6 @@ ngx_http_internal_auth_variable_result(ngx_http_request_t *r, ngx_http_variable_
     return NGX_OK;
 }
 
-/* 变量处理函数 - $internal_auth_fingerprint */
 static ngx_int_t
 ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)
 {
@@ -255,17 +254,18 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
 
     /* 获取当前时间，直接使用 ngx_time() */
-    time_t current_time = ngx_time();  // 返回秒级时间戳
+    time_t current_time = ngx_time(); // 返回秒级时间戳
 
     /* 转换为8位十六进制 */
     char timestamp_hex[9];
-    ngx_snprintf((u_char *)timestamp_hex, sizeof(timestamp_hex), "%08xD", (uint32_t)current_time);
-    timestamp_hex[8] = '\0'; // 确保字符串终止
+    ngx_snprintf((u_char *)timestamp_hex, sizeof(timestamp_hex), "%08x", (uint32_t)current_time);
 
     /* 拼接 secret + timestamp_hex */
     size_t data_len = conf->secret.len + 8;
     u_char *fingerprint_data = ngx_palloc(r->pool, data_len);
     if (fingerprint_data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        "failed to allocate memory for fingerprint_data");
         v->not_found = 1;
         return NGX_OK;
     }
@@ -275,28 +275,32 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     /* 计算 MD5 */
     ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(fingerprint_data, data_len, r->pool);
     if (computed_md5.len == 0) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        "failed to compute MD5 for fingerprint");
+        v->not_found = 1;
+        return NGX_OK;
+    }
+
+    /* 分配池内存存储结果 */
+    size_t fingerprint_len = 40;
+    v->data = ngx_palloc(r->pool, fingerprint_len + 1);
+    if (v->data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+        "failed to allocate memory for variable data");
         v->not_found = 1;
         return NGX_OK;
     }
 
     /* 拼接 timestamp_hex 和 md5_hex */
-    char fingerprint[41]; // 8 (timestamp) + 32 (MD5) +1 ('\0') =41
-    ngx_memcpy(fingerprint, timestamp_hex, 8);
-    ngx_memcpy(fingerprint + 8, computed_md5.data, 32);
-    fingerprint[40] = '\0'; // 确保字符串终止
+    ngx_memcpy(v->data, timestamp_hex, 8);
+    ngx_memcpy(v->data + 8, computed_md5.data, 32);
+    v->data[fingerprint_len] = '\0';
 
     /* 设置变量 */
-    v->len = 40; // 8 +32 =40
+    v->len = fingerprint_len;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
-    v->data = ngx_palloc(r->pool, v->len + 1);
-    if (v->data == NULL) {
-        v->not_found = 1;
-        return NGX_OK;
-    }
-    ngx_memcpy(v->data, fingerprint, 40);
-    v->data[40] = '\0';
 
     return NGX_OK;
 }
