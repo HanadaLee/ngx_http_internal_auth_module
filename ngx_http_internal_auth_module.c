@@ -254,17 +254,13 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     ngx_http_internal_auth_conf_t *conf;
     conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
 
-    /* 获取当前时间 */
-    ngx_time_t *tp = ngx_timeofday();
-    if (tp == NULL) {
-        v->not_found = 1;
-        return NGX_OK;
-    }
-    time_t current_time = tp->sec;
+    /* 获取当前时间，直接使用 ngx_time() */
+    time_t current_time = ngx_time();  // 返回秒级时间戳
 
     /* 转换为8位十六进制 */
     char timestamp_hex[9];
-    ngx_snprintf((u_char *)timestamp_hex, sizeof(timestamp_hex), "%08lxD", (unsigned long)current_time);
+    ngx_snprintf((u_char *)timestamp_hex, sizeof(timestamp_hex), "%08xD", (uint32_t)current_time);
+    timestamp_hex[8] = '\0'; // 确保字符串终止
 
     /* 拼接 secret + timestamp_hex */
     size_t data_len = conf->secret.len + 8;
@@ -284,13 +280,13 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     }
 
     /* 拼接 timestamp_hex 和 md5_hex */
-    char fingerprint[41];
+    char fingerprint[41]; // 8 (timestamp) + 32 (MD5) +1 ('\0') =41
     ngx_memcpy(fingerprint, timestamp_hex, 8);
     ngx_memcpy(fingerprint + 8, computed_md5.data, 32);
-    fingerprint[40] = '\0';
+    fingerprint[40] = '\0'; // 确保字符串终止
 
     /* 设置变量 */
-    v->len = 40;
+    v->len = 40; // 8 +32 =40
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
@@ -304,6 +300,7 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
 
     return NGX_OK;
 }
+
 
 /* 定义变量 */
 static ngx_http_variable_t ngx_http_internal_auth_vars[] = {
