@@ -278,6 +278,8 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     ngx_memcpy(fingerprint_data, conf->secret.data, conf->secret.len);
     ngx_memcpy(fingerprint_data + conf->secret.len, timestamp_hex, 8);
 
+    /*
+
     // 计算 MD5
     computed_md5 = ngx_http_internal_auth_compute_md5_hex(r, fingerprint_data, data_len);
     if (computed_md5.len != 32 || computed_md5.data == NULL) {
@@ -298,10 +300,10 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     // 拼接 timestamp_hex 和 md5_hex
     ngx_memcpy(v->data, timestamp_hex, 8);
     ngx_memcpy(v->data + 8, computed_md5.data, 32);
-
+*/
     // 设置变量
     v->len = fingerprint_len;
-
+    v->data = fingerprint_data;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
