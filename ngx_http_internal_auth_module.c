@@ -276,18 +276,6 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
 
-ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-              "conf->secret: \"%*s\"",
-              (int)conf->secret.len, conf->secret.data);
-
-if (conf->secret.data == NULL || conf->secret.len == 0) {
-    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                  "conf->secret is invalid (data=%p, len=%d)",
-                  conf->secret.data, (int)conf->secret.len);
-    v->not_found = 1;
-    return NGX_OK;
-}
-
 
     // 拼接 secret + timestamp_hex
     data_len = conf->secret.len + 8;
@@ -299,8 +287,6 @@ if (conf->secret.data == NULL || conf->secret.len == 0) {
     }
     ngx_memcpy(fingerprint_data, conf->secret.data, conf->secret.len);
     ngx_memcpy(fingerprint_data + conf->secret.len, timestamp_hex, 8);
-
-    /*
 
     // 计算 MD5
     computed_md5 = ngx_http_internal_auth_compute_md5_hex(r, fingerprint_data, data_len);
@@ -322,10 +308,9 @@ if (conf->secret.data == NULL || conf->secret.len == 0) {
     // 拼接 timestamp_hex 和 md5_hex
     ngx_memcpy(v->data, timestamp_hex, 8);
     ngx_memcpy(v->data + 8, computed_md5.data, 32);
-*/
+
     // 设置变量
-    v->len = data_len;
-    v->data = fingerprint_data;
+    v->len = fingerprint_len;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
