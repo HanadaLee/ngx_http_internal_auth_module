@@ -255,49 +255,43 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     ngx_http_internal_auth_conf_t *conf;
     conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
 
-    /* 获取当前时间，直接使用 ngx_time() */
-    time_t current_time = ngx_time(); // 返回秒级时间戳
-
-    /* 转换为8位十六进制 */
+    uint32_t timestamp = (uint32_t)ngx_time();
     u_char timestamp_hex[8];
-    ngx_hex_dump(timestamp_hex, (u_char *)&current_time, sizeof(uint32_t));
+    ngx_hex_dump(timestamp_hex, (u_char *)&timestamp, sizeof(uint32_t));
 
-    /* 拼接 secret + timestamp_hex */
+    // 拼接 secret + timestamp_hex
     size_t data_len = conf->secret.len + 8;
     u_char *fingerprint_data = ngx_palloc(r->pool, data_len);
     if (fingerprint_data == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "failed to allocate memory for fingerprint_data");
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Failed to allocate memory for fingerprint_data");
         v->not_found = 1;
         return NGX_OK;
     }
     ngx_memcpy(fingerprint_data, conf->secret.data, conf->secret.len);
     ngx_memcpy(fingerprint_data + conf->secret.len, timestamp_hex, 8);
 
-    /* 计算 MD5 */
+    // 计算 MD5
     ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(r, fingerprint_data, data_len);
-    if (computed_md5.len == 0) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "failed to compute MD5 for fingerprint");
+    if (computed_md5.len != 32 || computed_md5.data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Failed to compute MD5 for fingerprint");
         v->not_found = 1;
         return NGX_OK;
     }
 
-    /* 分配池内存存储结果 */
+    // 分配池内存存储结果
     size_t fingerprint_len = 40;
     v->data = ngx_palloc(r->pool, fingerprint_len);
     if (v->data == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "failed to allocate memory for variable data");
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Failed to allocate memory for variable data");
         v->not_found = 1;
         return NGX_OK;
     }
 
-    /* 拼接 timestamp_hex 和 md5_hex */
+    // 拼接 timestamp_hex 和 md5_hex
     ngx_memcpy(v->data, timestamp_hex, 8);
     ngx_memcpy(v->data + 8, computed_md5.data, 32);
 
-    /* 设置变量 */
+    // 设置变量
     v->len = fingerprint_len;
     v->valid = 1;
     v->no_cacheable = 0;
