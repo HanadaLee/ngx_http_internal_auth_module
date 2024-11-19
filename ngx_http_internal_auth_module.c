@@ -20,7 +20,7 @@ typedef struct {
     ngx_str_t      secret;
     ngx_flag_t     empty_deny;
     ngx_flag_t     failure_deny;
-    ngx_uint_t     timeout;
+    time_t         timeout;
     ngx_str_t      header_name;
 } ngx_http_internal_auth_conf_t;
 
@@ -167,7 +167,7 @@ ngx_http_internal_auth_result_variable(ngx_http_request_t *r,
         return NGX_OK;
     }
 
-    ngx_int_t rc = ngx_http_internal_auth_handler(r);
+    ngx_http_internal_auth_handler(r);
     ctx = ngx_http_get_module_ctx(r, ngx_http_internal_auth_module);
     if (ctx && ctx->result.len > 0) {
         v->len = ctx->result.len;
