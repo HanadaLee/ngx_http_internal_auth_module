@@ -304,7 +304,7 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
 */
     // 设置变量
     v->len = data_len;
-    v->data = fingerprint_data;
+    v->data = timestamp_hex;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
