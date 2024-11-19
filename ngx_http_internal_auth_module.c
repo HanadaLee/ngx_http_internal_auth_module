@@ -503,11 +503,11 @@ ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_internal_auth_conf_t *prev = parent;
     ngx_http_internal_auth_conf_t *conf = child;
 
-    ngx_conf_merge_off_value(conf->enable, prev->enable, 0);
+    ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_str_value(conf->secret,
                               prev->secret, "");
-    ngx_conf_merge_off_value(conf->empty_deny, prev->empty_deny, 0);
-    ngx_conf_merge_off_value(conf->failure_deny, prev->failure_deny, 1);
+    ngx_conf_merge_value(conf->empty_deny, prev->empty_deny, 0);
+    ngx_conf_merge_value(conf->failure_deny, prev->failure_deny, 1);
     ngx_conf_merge_value(conf->timeout, prev->timeout, 300);
     ngx_conf_merge_str_value(conf->header_name, prev->header_name, "X-Fingerprint");
 
