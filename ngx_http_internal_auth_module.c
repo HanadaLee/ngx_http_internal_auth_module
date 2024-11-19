@@ -268,6 +268,20 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
     p += ngx_sprintf(p, "%08xi", timestamp) - p;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
+
+ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+              "conf->secret: \"%*s\"",
+              (int)conf->secret.len, conf->secret.data);
+
+if (conf->secret.data == NULL || conf->secret.len == 0) {
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                  "conf->secret is invalid (data=%p, len=%d)",
+                  conf->secret.data, (int)conf->secret.len);
+    v->not_found = 1;
+    return NGX_OK;
+}
+
+
     // 拼接 secret + timestamp_hex
     data_len = conf->secret.len + 8;
     fingerprint_data = ngx_palloc(r->pool, data_len);
