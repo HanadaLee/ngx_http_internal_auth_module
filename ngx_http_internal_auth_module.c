@@ -252,8 +252,8 @@ ngx_http_internal_auth_variable_result(ngx_http_request_t *r, ngx_http_variable_
 static ngx_int_t
 ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)
 {
-    ngx_http_internal_auth_conf_t *conf;
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
+    /*ngx_http_internal_auth_conf_t *conf;
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);*/
 
     uint32_t timestamp = (uint32_t)ngx_time();
     u_char timestamp_hex[8];
