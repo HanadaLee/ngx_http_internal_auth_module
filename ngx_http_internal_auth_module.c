@@ -116,7 +116,12 @@ ngx_http_internal_auth_create_loc_conf(ngx_conf_t *cf)
         return NULL;
     }
 
-    /* 设置默认值 */
+    /*
+     * set by ngx_pcalloc():
+     *
+     *     conf->secret = { 0, NULL };
+     */
+
     conf->auth_enabled = NGX_CONF_UNSET;
     conf->empty_deny = NGX_CONF_UNSET;
     conf->failure_deny = NGX_CONF_UNSET;
@@ -135,6 +140,8 @@ ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_internal_auth_conf_t *conf = child;
 
     ngx_conf_merge_off_value(conf->auth_enabled, prev->auth_enabled, 0);
+    ngx_conf_merge_str_value(conf->secret,
+                              prev->secret, "");
     ngx_conf_merge_off_value(conf->empty_deny, prev->empty_deny, 0);
     ngx_conf_merge_off_value(conf->failure_deny, prev->failure_deny, 1);
     ngx_conf_merge_uint_value(conf->timeout, prev->timeout, 300); /* 使用 ngx_conf_merge_uint_value */
