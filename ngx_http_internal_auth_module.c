@@ -35,52 +35,52 @@ static ngx_table_elt_t* ngx_http_internal_auth_get_header(
 static ngx_str_t ngx_http_internal_auth_compute_md5_hex(
     ngx_http_request_t *r, const u_char *data, size_t len);
 static ngx_int_t ngx_http_internal_auth_handler(ngx_http_request_t *r);
-static void *ngx_http_internal_auth_create_loc_conf(ngx_conf_t *cf);
-static char *ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf,
+static void *ngx_http_internal_auth_create_srv_conf(ngx_conf_t *cf);
+static char *ngx_http_internal_auth_merge_srv_conf(ngx_conf_t *cf,
     void *parent, void *child);
 static ngx_int_t ngx_http_internal_auth_init(ngx_conf_t *cf);
 
 
 static ngx_command_t ngx_http_internal_auth_commands[] = {
     { ngx_string("internal_auth"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
+      NGX_HTTP_SRV_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, enable),
       NULL },
       
     { ngx_string("internal_auth_secret"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
+      NGX_HTTP_SRV_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, secret),
       NULL },
       
     { ngx_string("internal_auth_empty_deny"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
+      NGX_HTTP_SRV_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, empty_deny),
       NULL },
       
     { ngx_string("internal_auth_failure_deny"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
+      NGX_HTTP_SRV_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, failure_deny),
       NULL },
       
     { ngx_string("internal_auth_timeout"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
+      NGX_HTTP_SRV_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, timeout),
       NULL },
       
     { ngx_string("internal_auth_header"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
+      NGX_HTTP_SRV_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, header_name),
       NULL },
       
@@ -95,11 +95,11 @@ static ngx_http_module_t ngx_http_internal_auth_module_ctx = {
     NULL,                                    /* create main configuration */
     NULL,                                    /* init main configuration */
 
-    NULL,                                    /* create server configuration */
-    NULL,                                    /* merge server configuration */
+    ngx_http_internal_auth_create_srv_conf,  /* create server configuration */
+    ngx_http_internal_auth_merge_srv_conf,   /* merge server configuration */
 
-    ngx_http_internal_auth_create_loc_conf,  /* create location configuration */
-    ngx_http_internal_auth_merge_loc_conf    /* merge location configuration */
+    NULL,                                    /* create location configuration */
+    NULL                                     /* merge location configuration */
 };
 
 
@@ -158,26 +158,16 @@ ngx_http_internal_auth_result_variable(ngx_http_request_t *r,
     
     ctx = ngx_http_get_module_ctx(r, ngx_http_internal_auth_module);
 
-    if (ctx && ctx->result.len > 0) {
-        v->len = ctx->result.len;
-        v->valid = 1;
-        v->no_cacheable = 0;
-        v->not_found = 0;
-        v->data = ctx->result.data;
+    if (!ctx || ctx->result.len <= 0) {
+        v->not_found = 1;
         return NGX_OK;
     }
 
-    ngx_http_internal_auth_handler(r);
-    ctx = ngx_http_get_module_ctx(r, ngx_http_internal_auth_module);
-    if (ctx && ctx->result.len > 0) {
-        v->len = ctx->result.len;
-        v->valid = 1;
-        v->no_cacheable = 0;
-        v->not_found = 0;
-        v->data = ctx->result.data;
-    } else {
-        v->not_found = 1;
-    }
+    v->len = ctx->result.len;
+    v->valid = 1;
+    v->no_cacheable = 0;
+    v->not_found = 0;
+    v->data = ctx->result.data;
 
     return NGX_OK;
 }
@@ -201,7 +191,7 @@ ngx_http_internal_auth_fingerprint_variable(ngx_http_request_t *r,
     p = timestamp_hex;
     p += ngx_sprintf(p, "%08xi", timestamp) - p;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
+    conf = ngx_http_get_module_srv_conf(r, ngx_http_internal_auth_module);
 
     data_len = conf->secret.len + 8;
     fingerprint_data = ngx_palloc(r->pool, data_len);
@@ -313,7 +303,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     time_t                         timestamp, current_time;
     ngx_str_t data;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_internal_auth_module);
+    conf = ngx_http_get_module_srv_conf(r, ngx_http_internal_auth_module);
     ctx = ngx_http_get_module_ctx(r, ngx_http_internal_auth_module);
 
     if (ctx == NULL) {
@@ -471,7 +461,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
 
 static void *
-ngx_http_internal_auth_create_loc_conf(ngx_conf_t *cf)
+ngx_http_internal_auth_create_srv_conf(ngx_conf_t *cf)
 {
     ngx_http_internal_auth_conf_t *conf;
 
@@ -498,7 +488,7 @@ ngx_http_internal_auth_create_loc_conf(ngx_conf_t *cf)
 
 
 static char *
-ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
+ngx_http_internal_auth_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 {
     ngx_http_internal_auth_conf_t *prev = parent;
     ngx_http_internal_auth_conf_t *conf = child;
