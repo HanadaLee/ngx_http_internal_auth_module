@@ -489,7 +489,7 @@ ngx_http_internal_auth_create_loc_conf(ngx_conf_t *cf)
     conf->enable = NGX_CONF_UNSET;
     conf->empty_deny = NGX_CONF_UNSET;
     conf->failure_deny = NGX_CONF_UNSET;
-    conf->timeout = NGX_CONF_UNSET_UINT;
+    conf->timeout = NGX_CONF_UNSET;
     conf->header_name.len = 0;
     conf->header_name.data = NULL;
 
@@ -508,7 +508,7 @@ ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                               prev->secret, "");
     ngx_conf_merge_off_value(conf->empty_deny, prev->empty_deny, 0);
     ngx_conf_merge_off_value(conf->failure_deny, prev->failure_deny, 1);
-    ngx_conf_merge_uint_value(conf->timeout, prev->timeout, 300);
+    ngx_conf_merge_value(conf->timeout, prev->timeout, 300);
     ngx_conf_merge_str_value(conf->header_name, prev->header_name, "X-Fingerprint");
 
     return NGX_CONF_OK;
