@@ -145,31 +145,33 @@ ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
 /* 计算 MD5 并转换为十六进制字符串 */
 static ngx_str_t
-ngx_http_internal_auth_compute_md5_hex(const u_char *data, size_t len, ngx_pool_t *pool)
+ngx_http_internal_auth_compute_md5_hex(ngx_http_request_t *r, const u_char *data, size_t len)
 {
     ngx_md5_t md5;
     u_char digest[16];
-    size_t i;
     ngx_str_t md5_hex;
 
+    // 初始化 MD5 计算
     ngx_md5_init(&md5);
     ngx_md5_update(&md5, data, len);
     ngx_md5_final(digest, &md5);
 
+    // 分配内存
     md5_hex.len = 32;
-    md5_hex.data = ngx_palloc(pool, md5_hex.len + 1);
+    md5_hex.data = ngx_palloc(r->pool, md5_hex.len); // 使用请求的内存池
     if (md5_hex.data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "Failed to allocate memory for MD5 hex string");
         md5_hex.len = 0;
         return md5_hex;
     }
 
-    for (i = 0; i < 16; i++) {
-        ngx_snprintf(md5_hex.data + (i * 2), 3, "%02xD", digest[i]);
-    }
-    md5_hex.data[md5_hex.len] = '\0';
+    // 使用 ngx_hex_dump 将 MD5 的二进制数据转换为十六进制字符串
+    ngx_hex_dump(md5_hex.data, digest, 16);
 
     return md5_hex;
 }
+
 
 /* 复制字符串 */
 static ngx_str_t
