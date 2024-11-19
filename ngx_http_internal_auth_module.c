@@ -25,46 +25,47 @@ static char *ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent,
 static ngx_int_t ngx_http_internal_auth_init(ngx_conf_t *cf);
 static ngx_int_t ngx_http_internal_auth_variable_result(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+static ngx_table_elt_t* ngx_http_internal_auth_get_header(ngx_http_request_t *r, ngx_str_t *name);
 
 /* 模块指令 */
 static ngx_command_t ngx_http_internal_auth_commands[] = {
     { ngx_string("internal_request_auth"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, auth_enabled),
       NULL },
       
     { ngx_string("internal_request_auth_secret"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, secret),
       NULL },
       
     { ngx_string("internal_request_auth_empty_deny"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, empty_deny),
       NULL },
       
     { ngx_string("internal_request_auth_failure_deny"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_FLAG,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, failure_deny),
       NULL },
       
     { ngx_string("internal_request_auth_timeout"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, timeout),
       NULL },
       
     { ngx_string("internal_request_auth_header"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_internal_auth_conf_t, header_name),
@@ -136,7 +137,7 @@ ngx_http_internal_auth_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_off_value(conf->auth_enabled, prev->auth_enabled, 0);
     ngx_conf_merge_off_value(conf->empty_deny, prev->empty_deny, 0);
     ngx_conf_merge_off_value(conf->failure_deny, prev->failure_deny, 1);
-    ngx_conf_merge_value(conf->timeout, prev->timeout, 300);
+    ngx_conf_merge_value(conf->timeout, prev->timeout, (ngx_uint_t)300);
     ngx_conf_merge_str_value(conf->header_name, prev->header_name, "X-Fingerprint");
 
     return NGX_CONF_OK;
@@ -181,6 +182,36 @@ ngx_http_internal_auth_string_n_copy(const u_char *src, size_t n, ngx_pool_t *po
         ngx_memcpy(s.data, src, n);
     }
     return s;
+}
+
+/* 查找请求头 */
+static ngx_table_elt_t*
+ngx_http_internal_auth_get_header(ngx_http_request_t *r, ngx_str_t *name)
+{
+    ngx_list_part_t *part = &r->headers_in.headers.part;
+    ngx_table_elt_t *h = part->elts;
+
+    for (ngx_uint_t i = 0; i < part->nelts; i++) {
+        if (h[i].key.len == name->len &&
+            ngx_strncasecmp(h[i].key.data, name->data, name->len) == 0)
+        {
+            return &h[i];
+        }
+    }
+
+    while (part->next != NULL) {
+        part = part->next;
+        h = part->elts;
+        for (ngx_uint_t i = 0; i < part->nelts; i++) {
+            if (h[i].key.len == name->len &&
+                ngx_strncasecmp(h[i].key.data, name->data, name->len) == 0)
+            {
+                return &h[i];
+            }
+        }
+    }
+
+    return NULL;
 }
 
 /* 变量处理函数 - $internal_auth_result */
@@ -233,16 +264,16 @@ ngx_http_internal_auth_variable_fingerprint(ngx_http_request_t *r, ngx_http_vari
 
     /* 拼接 secret + timestamp_hex */
     size_t data_len = conf->secret.len + 8;
-    u_char *data = ngx_palloc(r->pool, data_len);
-    if (data == NULL) {
+    u_char *fingerprint_data = ngx_palloc(r->pool, data_len);
+    if (fingerprint_data == NULL) {
         v->not_found = 1;
         return NGX_OK;
     }
-    ngx_memcpy(data, conf->secret.data, conf->secret.len);
-    ngx_memcpy(data + conf->secret.len, timestamp_hex, 8);
+    ngx_memcpy(fingerprint_data, conf->secret.data, conf->secret.len);
+    ngx_memcpy(fingerprint_data + conf->secret.len, timestamp_hex, 8);
 
     /* 计算 MD5 */
-    ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(data, data_len, r->pool);
+    ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(fingerprint_data, data_len, r->pool);
     if (computed_md5.len == 0) {
         v->not_found = 1;
         return NGX_OK;
@@ -302,18 +333,21 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     }
 
     if (!conf->auth_enabled) {
-        ctx->internal_auth_result = ngx_string("off");
+        ctx->internal_auth_result.len = sizeof("off") - 1;
+        ctx->internal_auth_result.data = (u_char *)"off";
         return NGX_DECLINED;
     }
 
     /* 获取请求头 */
-    ngx_table_elt_t *h = ngx_http_get_header(r, conf->header_name.data, conf->header_name.len);
+    ngx_table_elt_t *h = ngx_http_internal_auth_get_header(r, &conf->header_name);
     if (h == NULL) {
         if (conf->empty_deny) {
-            ctx->internal_auth_result = ngx_string("empty");
+            ctx->internal_auth_result.len = sizeof("empty") - 1;
+            ctx->internal_auth_result.data = (u_char *)"empty";
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ctx->internal_auth_result = ngx_string("success");
+            ctx->internal_auth_result.len = sizeof("success") - 1;
+            ctx->internal_auth_result.data = (u_char *)"success";
             return NGX_DECLINED;
         }
     }
@@ -322,10 +356,12 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
     if (fingerprint_header.len < 8) {
         if (conf->failure_deny) {
-            ctx->internal_auth_result = ngx_string("failure");
+            ctx->internal_auth_result.len = sizeof("failure") - 1;
+            ctx->internal_auth_result.data = (u_char *)"failure";
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ctx->internal_auth_result = ngx_string("success");
+            ctx->internal_auth_result.len = sizeof("success") - 1;
+            ctx->internal_auth_result.data = (u_char *)"success";
             return NGX_DECLINED;
         }
     }
@@ -338,10 +374,12 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     unsigned long timestamp = strtoul((char *)timestamp_hex.data, NULL, 16);
     if (timestamp == 0) {
         if (conf->failure_deny) {
-            ctx->internal_auth_result = ngx_string("failure");
+            ctx->internal_auth_result.len = sizeof("failure") - 1;
+            ctx->internal_auth_result.data = (u_char *)"failure";
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ctx->internal_auth_result = ngx_string("success");
+            ctx->internal_auth_result.len = sizeof("success") - 1;
+            ctx->internal_auth_result.data = (u_char *)"success";
             return NGX_DECLINED;
         }
     }
@@ -349,17 +387,26 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     /* 获取当前时间 */
     ngx_time_t *tp = ngx_timeofday();
     if (tp == NULL) {
-        ctx->internal_auth_result = ngx_string("failure");
-        return NGX_HTTP_FORBIDDEN;
+        if (conf->failure_deny) {
+            ctx->internal_auth_result.len = sizeof("failure") - 1;
+            ctx->internal_auth_result.data = (u_char *)"failure";
+            return NGX_HTTP_FORBIDDEN;
+        } else {
+            ctx->internal_auth_result.len = sizeof("success") - 1;
+            ctx->internal_auth_result.data = (u_char *)"success";
+            return NGX_DECLINED;
+        }
     }
     unsigned long current_time = tp->sec;
 
     if ((current_time - timestamp) > conf->timeout) {
         if (conf->failure_deny) {
-            ctx->internal_auth_result = ngx_string("failure");
+            ctx->internal_auth_result.len = sizeof("failure") - 1;
+            ctx->internal_auth_result.data = (u_char *)"failure";
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ctx->internal_auth_result = ngx_string("success");
+            ctx->internal_auth_result.len = sizeof("success") - 1;
+            ctx->internal_auth_result.data = (u_char *)"success";
             return NGX_DECLINED;
         }
     }
@@ -378,26 +425,31 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     ngx_str_t computed_md5 = ngx_http_internal_auth_compute_md5_hex(data.data, data.len, r->pool);
     if (computed_md5.len == 0) {
         if (conf->failure_deny) {
-            ctx->internal_auth_result = ngx_string("failure");
+            ctx->internal_auth_result.len = sizeof("failure") - 1;
+            ctx->internal_auth_result.data = (u_char *)"failure";
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ctx->internal_auth_result = ngx_string("success");
+            ctx->internal_auth_result.len = sizeof("success") - 1;
+            ctx->internal_auth_result.data = (u_char *)"success";
             return NGX_DECLINED;
         }
     }
 
     if (computed_md5.len != md5sum.len || ngx_strncmp(computed_md5.data, md5sum.data, md5sum.len) != 0) {
         if (conf->failure_deny) {
-            ctx->internal_auth_result = ngx_string("failure");
+            ctx->internal_auth_result.len = sizeof("failure") - 1;
+            ctx->internal_auth_result.data = (u_char *)"failure";
             return NGX_HTTP_FORBIDDEN;
         } else {
-            ctx->internal_auth_result = ngx_string("success");
+            ctx->internal_auth_result.len = sizeof("success") - 1;
+            ctx->internal_auth_result.data = (u_char *)"success";
             return NGX_DECLINED;
         }
     }
 
     /* 如果所有检查通过 */
-    ctx->internal_auth_result = ngx_string("success");
+    ctx->internal_auth_result.len = sizeof("success") - 1;
+    ctx->internal_auth_result.data = (u_char *)"success";
 
     return NGX_DECLINED;
 }
@@ -426,7 +478,7 @@ ngx_http_internal_auth_init(ngx_conf_t *cf)
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
     /* 挂载 handler 到 ACCESS 阶段 */
-    h = ngx_array_push(&cmcf->phases[NGX_HTTP_POST_READ_PHASE].handlers);
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers);
     if (h == NULL) {
         return NGX_ERROR;
     }
