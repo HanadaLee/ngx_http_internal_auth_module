@@ -444,7 +444,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
     secret = conf->request_secrets->elts;
     for (i = 0; i < conf->request_secrets->nelts; i++) {
-        data.len = secret[i].len + timestamp_hex.len;
+        data.len = secret[i].len + 8;
         data.data = ngx_palloc(r->pool, data.len);
         if (data.data == NULL) {
             return ngx_http_internal_auth_deny(r, ctx,
