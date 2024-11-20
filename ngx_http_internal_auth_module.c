@@ -376,11 +376,12 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     ngx_str_t                      fingerprint_header;
     u_char                         timestamp_hex[9];
     u_char                         md5sum_data[33];
-    ngx_str_t                      timestamp_hex, md5sum;
+    ngx_str_t                      md5sum;
     time_t                         timestamp, current_time;
     ngx_uint_t                     i;
     ngx_str_t                      computed_md5;
     ngx_str_t                      data;
+    ngx_str_t                     *secret;
 
     conf = ngx_http_get_module_srv_conf(r, ngx_http_internal_auth_module);
     ctx = ngx_http_get_module_ctx(r, ngx_http_internal_auth_module);
