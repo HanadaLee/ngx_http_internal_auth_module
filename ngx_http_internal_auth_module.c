@@ -356,8 +356,6 @@ ngx_http_internal_auth_deny(ngx_http_request_t *r,
     ngx_http_internal_auth_ctx_t *ctx, const char *log_message,
     ngx_uint_t deny_flag)
 {
-    ngx_str_set(&ctx->result, "failure");
-
     if (deny_flag) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "%s", log_message);
         return NGX_HTTP_FORBIDDEN;
@@ -401,6 +399,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
     h = ngx_http_internal_auth_get_header(r, &conf->header_name);
     if (h == NULL) {
+        ngx_str_set(&ctx->result, "empty");
         return ngx_http_internal_auth_deny(r, ctx,
             "internal auth denied access due to empty fingerprint",
             conf->empty_deny);
@@ -408,6 +407,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
     fingerprint_header = h->value;
     if (fingerprint_header.len < 40) {
+        ngx_str_set(&ctx->result, "failure");
         return ngx_http_internal_auth_deny(r, ctx,
             "internal auth denied access due to invalid fingerprint format",
             conf->failure_deny);
@@ -423,6 +423,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
     timestamp = (time_t) ngx_hextoi(timestamp_hex, 8);
     if (timestamp == (time_t) NGX_ERROR || timestamp == 0) {
+        ngx_str_set(&ctx->result, "failure");
         return ngx_http_internal_auth_deny(r, ctx,
             "internal auth denied access due to invalid fingerprint timestamp",
             conf->failure_deny);
@@ -430,6 +431,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
 
     current_time = ngx_time();
     if ((current_time - timestamp) > conf->timeout) {
+        ngx_str_set(&ctx->result, "failure");
         return ngx_http_internal_auth_deny(r, ctx, 
             "internal auth denied access due to fingerprint timeout",
             conf->failure_deny);
@@ -438,7 +440,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
     if (conf->request_secrets == NULL || conf->request_secrets->nelts == 0) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
             "internal auth skipped due to no configured secret");
-        ngx_str_set(&ctx->result, "success");
+        ngx_str_set(&ctx->result, "secret_noconfigured");
         return NGX_DECLINED;
     }
 
@@ -447,6 +449,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
         data.len = secret[i].len + 8;
         data.data = ngx_palloc(r->pool, data.len);
         if (data.data == NULL) {
+            ngx_str_set(&ctx->result, "failure");
             return ngx_http_internal_auth_deny(r, ctx,
                 "failed to allocate memory for fingerprint data",
                 conf->failure_deny);
@@ -459,6 +462,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
             data.data, data.len);
 
         if (computed_md5.len == 0) {
+            ngx_str_set(&ctx->result, "failure");
             return ngx_http_internal_auth_deny(r, ctx,
                 "internal auth denied access due to empty fingerprint hash",
                 conf->failure_deny);
@@ -471,6 +475,7 @@ ngx_http_internal_auth_handler(ngx_http_request_t *r)
         }
     }
 
+    ngx_str_set(&ctx->result, "failure");
     return ngx_http_internal_auth_deny(r, ctx,
         "internal auth denied access due to fingerprint hash mismatch",
         conf->failure_deny);
