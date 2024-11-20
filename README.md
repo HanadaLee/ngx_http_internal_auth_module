@@ -21,9 +21,9 @@ This Nginx module provides internal request authentication by validating a custo
   * [internal_auth_empty_deny](#internal_auth_empty_deny)
   * [internal_auth_failure_deny](#internal_auth_failure_deny)
   * [internal_request_auth_header](#internal_request_auth_header)
-* [Variables]
-  * [$internal_auth_proxy_fingerprint](#$internal_auth_proxy_fingerprint)
-  * [$internal_auth_proxy_fingerprint](#$internal_auth_proxy_fingerprint)
+* [Variables](#variables)
+  * [$internal_auth_proxy_fingerprint](#\$internal_auth_proxy_fingerprint)
+  * [$internal_auth_proxy_fingerprint](#\$internal_auth_proxy_fingerprint)
 * [Author](#author)
 * [License](#license)
 
@@ -35,14 +35,13 @@ This Nginx module is currently considered experimental. Issues and PRs are welco
 
 ```nginx
 http {
-    internal_request_auth on;
-    internal_request_auth_secret secret1 secret2;
-    internal_request_auth_timeout 600;
-    internal_request_auth_header X-Fingerprint;
-    internal_request_auth on;
-    internal_request_auth_empty_deny off;
-    internal_request_auth_failure_deny on;
-    internal_request_auth_secret secret1;
+    internal_auth on;
+    internal_auth_request_secret secret1 secret2;
+    internal_auth_timeout 600;
+    internal_auth_header X-Fingerprint;
+    internal_auth_empty_deny off;
+    internal_auth_failure_deny on;
+    internal_auth_proxy_secret secret1;
 
     server {
         listen 80;
