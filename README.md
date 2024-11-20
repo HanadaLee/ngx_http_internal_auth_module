@@ -1,93 +1,175 @@
 # ngx_http_internal_auth_module
 
+# Name
 
+This Nginx module provides internal request authentication by validating a custom HTTP header (default is X-Fingerprint) against a set of predefined secrets. The module is highly configurable and allows flexible integration into existing systems for enhanced security.
 
-## Getting started
+* Validates an X-Fingerprint HTTP header against a preconfigured list of secrets.
+* Supports multiple secrets for flexible configuration.
+* Configurable behavior for missing, invalid or expired time.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+# Table of Content
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+* [Name](#name)
+* [Status](#status)
+* [Synopsis](#synopsis)
+* [Installation](#installation)
+* [Directives](#directives)
+  * [internal_auth](#internal_auth)
+  * [internal_auth_request_secrets](#internal_auth_request_secrets)
+  * [internal_auth_proxy_secret](#internal_auth_proxy_secret)
+  * [internal_auth_empty_deny](#internal_auth_empty_deny)
+  * [internal_auth_failure_deny](#internal_auth_failure_deny)
+  * [internal_request_auth_header](#internal_request_auth_header)
+* [Variables]
+  * [$internal_auth_proxy_fingerprint](#$internal_auth_proxy_fingerprint)
+  * [$internal_auth_proxy_fingerprint](#$internal_auth_proxy_fingerprint)
+* [Author](#author)
+* [License](#license)
 
-## Add your files
+# Status
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+This Nginx module is currently considered experimental. Issues and PRs are welcome if you encounter any problems.
 
+# Synopsis
+
+```nginx
+http {
+    internal_request_auth on;
+    internal_request_auth_secret secret1 secret2;
+    internal_request_auth_timeout 600;
+    internal_request_auth_header X-Fingerprint;
+    internal_request_auth on;
+    internal_request_auth_empty_deny off;
+    internal_request_auth_failure_deny on;
+    internal_request_auth_secret secret1;
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_set_header X-Fingerprint $internal_auth_proxy_fingerprint;
+            proxy_pass http://upstream_server;
+        }
+    }
+}
 ```
-cd existing_repo
-git remote add origin https://git.hanada.info/hanada/ngx_http_internal_auth_module.git
-git branch -M main
-git push -uf origin main
+
+# Installation
+
+To use theses modules, configure your nginx branch with `--add-module=/path/to/ngx_http_access_control_module`.
+
+# Directives
+
+## internal_auth
+
+**Syntax:** *internal_auth on | off;*
+
+**Default:** *internal_auth off;*
+
+**Context:** *http, server*
+
+Enable or disable the internal authentication module.
+
+## internal_auth_request_secrets
+
+**Syntax:** *internal_auth_request_secrets secret1 \[secret2 ...\];*
+
+**Default:** *-;*
+
+**Context:** *http, server*
+
+Specifies one or more secrets used to validate the header. A maximum of three secrets are allowed.
+
+## internal_auth_proxy_secret
+
+**Syntax:** *internal_auth_proxy_secrets secret;*
+
+**Default:** *-;*
+
+**Context:** *http, server*
+
+Specifies the secret used to gerenate a new value of fingerprint validation header. The fingerprint value will be appended to the variable `$internal_auth_proxy_fingerprint`, which can be used to append to upstream request headers to enable auth by upstream server.
+
+For example, with the following configuration
+```
+server {
+    listen 80;
+    internal_auth_proxy_secrets test_secret;
+    ...
+
+    location / {
+        ...
+        proxy_set_header X-Fingerprint $internal_auth_proxy_fingerprint;
+        proxy_pass http://upstream_server;
+    }
+}
 ```
 
-## Integrate with your tools
+## internal_auth_empty_deny
 
-- [ ] [Set up project integrations](https://git.hanada.info/hanada/ngx_http_internal_auth_module/-/settings/integrations)
+**Syntax:** *internal_auth_empty_deny on | off;*
 
-## Collaborate with your team
+**Default:** *internal_auth_empty_deny off;*
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+**Context:** *http, server*
 
-## Test and Deploy
+Determines whether to deny requests missing the header. If set to `on`, missing headers result in a deny status.
 
-Use the built-in continuous integration in GitLab.
+## internal_auth_failure_deny
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+**Syntax:** *internal_auth_failure_deny on | off;*
 
-***
+**Default:** *internal_auth_failure_deny on;*
 
-# Editing this README
+**Context:** *http, server*
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Determines whether to deny requests when fingerprint validation fails. If set to `on, invalid fingerprints result in a deny status.
 
-## Suggestions for a good README
+## internal_request_auth_timeout
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+**Syntax:** *internal_auth_failure_deny on | off;*
 
-## Name
-Choose a self-explaining name for your project.
+**Default:** *internal_auth_failure_deny on;*
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+**Context:** *http, server*
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Specifies the maximum allowed age of a timestamp (in seconds) in the header. Requests with timestamps exceeding this value are denied. Only valid when `internal_auth_failure_deny` is set to `on`.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## internal_request_auth_header
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+**Syntax:** *internal_request_auth_header header_name;*
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+**Default:** *internal_request_auth_header X-Fingerprint;*
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+**Context:** *http, server*
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Specifies the name of the HTTP header used for fingerprint validation.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+# Variables
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+## \$internal_auth_result
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Indicates the result of the internal authentication process.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Possible Values:
+* off: Authentication is disabled (internal_request_auth is off).
+* empty: The fingerprint header is missing.
+* failure: Authentication failed due to an invalid timestamp, hash mismatch, or other errors.
+* success: Authentication succeeded.
 
-## License
-For open source projects, say how it is licensed.
+## \$internal_auth_proxy_fingerprint
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Generates a new fingerprint based on the current server time and the configured secrets.
+
+Format: <8-character imestamp><32-character MD5 hash>
+The first 8 characters are a hexadecimal UNIX timestamp.
+The last 32 characters are the MD5 hash of the secret concatenated with the timestamp.
+
+# Author
+
+Hanada im@hanada.info
+
+# License
+
+This Nginx module is licensed under [BSD 2-Clause License](LICENSE).
