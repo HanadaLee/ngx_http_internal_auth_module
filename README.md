@@ -1,4 +1,4 @@
-# ngx_http_internal_auth_module
+# ngx_http_auth_internal_module
 
 # Name
 
@@ -10,22 +10,25 @@ This Nginx module provides internal request authentication by validating a custo
 
 # Table of Content
 
-* [Name](#name)
-* [Status](#status)
-* [Synopsis](#synopsis)
-* [Installation](#installation)
-* [Directives](#directives)
-  * [internal_auth](#internal_auth)
-  * [internal_auth_request_secrets](#internal_auth_request_secrets)
-  * [internal_auth_proxy_secret](#internal_auth_proxy_secret)
-  * [internal_auth_empty_deny](#internal_auth_empty_deny)
-  * [internal_auth_failure_deny](#internal_auth_failure_deny)
-  * [internal_request_auth_header](#internal_request_auth_header)
-* [Variables](#variables)
-  * [$internal_auth_proxy_fingerprint](#\$internal_auth_proxy_fingerprint)
-  * [$internal_auth_proxy_fingerprint](#\$internal_auth_proxy_fingerprint)
-* [Author](#author)
-* [License](#license)
+- [ngx\_http\_auth\_internal\_module](#ngx_http_auth_internal_module)
+- [Name](#name)
+- [Table of Content](#table-of-content)
+- [Status](#status)
+- [Synopsis](#synopsis)
+- [Installation](#installation)
+- [Directives](#directives)
+  - [auth\_internal](#auth_internal)
+  - [auth\_internal\_request\_secrets](#auth_internal_request_secrets)
+  - [auth\_internal\_proxy\_secret](#auth_internal_proxy_secret)
+  - [auth\_internal\_empty\_deny](#auth_internal_empty_deny)
+  - [auth\_internal\_failure\_deny](#auth_internal_failure_deny)
+  - [internal\_request\_auth\_timeout](#internal_request_auth_timeout)
+  - [internal\_request\_auth\_header](#internal_request_auth_header)
+- [Variables](#variables)
+  - [$auth\_internal\_result](#auth_internal_result)
+  - [$auth\_internal\_proxy\_fingerprint](#auth_internal_proxy_fingerprint)
+- [Author](#author)
+- [License](#license)
 
 # Status
 
@@ -35,19 +38,19 @@ This Nginx module is currently considered experimental. Issues and PRs are welco
 
 ```nginx
 http {
-    internal_auth on;
-    internal_auth_request_secret secret1 secret2;
-    internal_auth_timeout 600;
-    internal_auth_header X-Fingerprint;
-    internal_auth_empty_deny off;
-    internal_auth_failure_deny on;
-    internal_auth_proxy_secret secret1;
+    auth_internal on;
+    auth_internal_request_secret secret1 secret2;
+    auth_internal_timeout 600;
+    auth_internal_header X-Fingerprint;
+    auth_internal_empty_deny off;
+    auth_internal_failure_deny on;
+    auth_internal_proxy_secret secret1;
 
     server {
         listen 80;
 
         location / {
-            proxy_set_header X-Fingerprint $internal_auth_proxy_fingerprint;
+            proxy_set_header X-Fingerprint $auth_internal_proxy_fingerprint;
             proxy_pass http://upstream_server;
         }
     }
@@ -60,19 +63,19 @@ To use theses modules, configure your nginx branch with `--add-module=/path/to/n
 
 # Directives
 
-## internal_auth
+## auth_internal
 
-**Syntax:** *internal_auth on | off;*
+**Syntax:** *auth_internal on | off;*
 
-**Default:** *internal_auth off;*
+**Default:** *auth_internal off;*
 
 **Context:** *http, server*
 
-Enable or disable the internal authentication module.
+Enable or disable the internal authentication.
 
-## internal_auth_request_secrets
+## auth_internal_request_secrets
 
-**Syntax:** *internal_auth_request_secrets secret1 \[secret2 ...\];*
+**Syntax:** *auth_internal_request_secrets secret1 \[secret2 ...\];*
 
 **Default:** *-;*
 
@@ -80,46 +83,46 @@ Enable or disable the internal authentication module.
 
 Specifies one or more secrets used to validate the header. A maximum of three secrets are allowed.
 
-## internal_auth_proxy_secret
+## auth_internal_proxy_secret
 
-**Syntax:** *internal_auth_proxy_secrets secret;*
+**Syntax:** *auth_internal_proxy_secrets secret;*
 
 **Default:** *-;*
 
 **Context:** *http, server*
 
-Specifies the secret used to gerenate a new value of fingerprint validation header. The fingerprint value will be appended to the variable `$internal_auth_proxy_fingerprint`, which can be used to append to upstream request headers to enable auth by upstream server.
+Specifies the secret used to gerenate a new value of fingerprint validation header. The fingerprint value will be appended to the variable `$auth_internal_proxy_fingerprint`, which can be used to append to upstream request headers to enable auth by upstream server.
 
 For example, with the following configuration
 ```
 server {
     listen 80;
-    internal_auth_proxy_secrets test_secret;
+    auth_internal_proxy_secrets test_secret;
     ...
 
     location / {
         ...
-        proxy_set_header X-Fingerprint $internal_auth_proxy_fingerprint;
+        proxy_set_header X-Fingerprint $auth_internal_proxy_fingerprint;
         proxy_pass http://upstream_server;
     }
 }
 ```
 
-## internal_auth_empty_deny
+## auth_internal_empty_deny
 
-**Syntax:** *internal_auth_empty_deny on | off;*
+**Syntax:** *auth_internal_empty_deny on | off;*
 
-**Default:** *internal_auth_empty_deny off;*
+**Default:** *auth_internal_empty_deny off;*
 
 **Context:** *http, server*
 
 Determines whether to deny requests missing the header. If set to `on`, missing headers result in a deny status.
 
-## internal_auth_failure_deny
+## auth_internal_failure_deny
 
-**Syntax:** *internal_auth_failure_deny on | off;*
+**Syntax:** *auth_internal_failure_deny on | off;*
 
-**Default:** *internal_auth_failure_deny on;*
+**Default:** *auth_internal_failure_deny on;*
 
 **Context:** *http, server*
 
@@ -127,13 +130,13 @@ Determines whether to deny requests when fingerprint validation fails. If set to
 
 ## internal_request_auth_timeout
 
-**Syntax:** *internal_auth_failure_deny on | off;*
+**Syntax:** *auth_internal_failure_deny on | off;*
 
-**Default:** *internal_auth_failure_deny on;*
+**Default:** *auth_internal_failure_deny on;*
 
 **Context:** *http, server*
 
-Specifies the maximum allowed age of a timestamp (in seconds) in the header. Requests with timestamps exceeding this value are denied. Only valid when `internal_auth_failure_deny` is set to `on`.
+Specifies the maximum allowed age of a timestamp (in seconds) in the header. Requests with timestamps exceeding this value are denied. Only valid when `auth_internal_failure_deny` is set to `on`.
 
 ## internal_request_auth_header
 
@@ -147,7 +150,7 @@ Specifies the name of the HTTP header used for fingerprint validation.
 
 # Variables
 
-## \$internal_auth_result
+## \$auth_internal_result
 
 Indicates the result of the internal authentication process.
 
@@ -157,7 +160,7 @@ Possible Values:
 * failure: Authentication failed due to an invalid timestamp, hash mismatch, or other errors.
 * success: Authentication succeeded.
 
-## \$internal_auth_proxy_fingerprint
+## \$auth_internal_proxy_fingerprint
 
 Generates a new fingerprint based on the current server time and the configured secrets.
 

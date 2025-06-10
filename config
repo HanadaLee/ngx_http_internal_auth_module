@@ -1,4 +1,4 @@
-ngx_addon_name=ngx_http_internal_auth_module
+ngx_addon_name=ngx_http_auth_internal_module
 ngx_module_srcs="$ngx_addon_dir/$ngx_addon_name.c"
 
 if test -n "$ngx_module_link"; then
